@@ -45,9 +45,13 @@ if (process.env.DEV_MODE === "production" || process.env.NODE_ENV === "productio
   });
 }
 
-app.listen(PORT, () => {
-  console.log(
-    `Server Running in ${process.env.DEV_MODE} mode on port no ${PORT}`.bgCyan
-      .white
-  );
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(
+      `Server Running in ${process.env.DEV_MODE} mode on port no ${PORT}`.bgCyan
+        .white
+    );
+  });
+}
+
+module.exports = app;
