@@ -10,10 +10,16 @@ exports.getReviews = async (req, res) => {
 };
 
 exports.createReview = async (req, res) => {
-  const { username, rating, title, experience, category } = req.body;
+  const { rating, title, experience, category } = req.body;
+  const username = req.user.username;
 
-  if (!username?.trim() || !title?.trim() || !experience?.trim()) {
-    return res.status(400).json({ error: "Username, title, and experience are required." });
+  if (
+    typeof title !== "string" ||
+    typeof experience !== "string" ||
+    !title.trim() ||
+    !experience.trim()
+  ) {
+    return res.status(400).json({ error: "Title and experience must be non-empty strings." });
   }
 
   if (!rating || rating < 1 || rating > 5) {

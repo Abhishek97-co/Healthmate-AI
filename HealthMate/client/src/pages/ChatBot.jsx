@@ -3,13 +3,20 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { TextField, Button, Dialog, DialogTitle, DialogContent, DialogActions, IconButton } from "@mui/material";
-import SendIcon from "@mui/icons-material/Send";
-import PersonIcon from "@mui/icons-material/Person";
-import SmartToyIcon from "@mui/icons-material/SmartToy";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import SaveIcon from "@mui/icons-material/Save";
-import LockOpenIcon from "@mui/icons-material/LockOpen";
+import {
+  Send as SendIcon,
+  Person as PersonIcon,
+  SmartToy as SmartToyIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+  Save as SaveIcon,
+  LockOpen as LockOpenIcon,
+  Mic as MicIcon,
+  MicOff as MicOffIcon,
+  VolumeUp as VolumeUpIcon,
+  VolumeOff as VolumeOffIcon
+} from "@mui/icons-material";
+import { useAuthStore } from "../store/useAuthStore";
 
 const QUICK_PROMPTS = [
   "Create a 7-day diet plan for me",
@@ -43,10 +50,100 @@ const ChatBot = () => {
   const chatEndRef = useRef(null);
 
   // Auth and chat count limits
-  const loggedIn = !!localStorage.getItem("authToken");
+  const user = useAuthStore((state) => state.user);
+  const storeToken = useAuthStore((state) => state.token);
+  const updateProfileState = useAuthStore((state) => state.updateProfileState);
+  const loggedIn = !!storeToken;
   const [chatSessionId, setChatSessionId] = useState(null);
   const [guestChats, setGuestChats] = useState(0);
   const [limitModalOpen, setLimitModalOpen] = useState(false);
+
+  // Voice States
+  const [isRecording, setIsRecording] = useState(false);
+  const [currentlySpeakingMsgIdx, setCurrentlySpeakingMsgIdx] = useState(null);
+  const recognitionRef = useRef(null);
+
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const rec = new SpeechRecognition();
+      rec.continuous = false;
+      rec.interimResults = false;
+      rec.lang = "en-US";
+
+      rec.onstart = () => {
+        setIsRecording(true);
+      };
+
+      rec.onend = () => {
+        setIsRecording(false);
+      };
+
+      rec.onresult = (e) => {
+        const resultText = e.results[0][0].transcript;
+        setText((prev) => (prev ? prev + " " + resultText : resultText));
+      };
+
+      rec.onerror = (e) => {
+        console.error("Speech recognition error:", e);
+        setIsRecording(false);
+      };
+
+      recognitionRef.current = rec;
+    }
+
+    return () => {
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  const toggleRecording = () => {
+    if (!recognitionRef.current) {
+      toast.error("Speech recognition is not supported in this browser. Please use Chrome.");
+      return;
+    }
+    if (isRecording) {
+      recognitionRef.current.stop();
+    } else {
+      recognitionRef.current.start();
+    }
+  };
+
+  const speakText = (messageText, msgIndex) => {
+    if (!("speechSynthesis" in window)) {
+      toast.error("Text-to-speech is not supported in this browser.");
+      return;
+    }
+
+    if (currentlySpeakingMsgIdx === msgIndex) {
+      window.speechSynthesis.cancel();
+      setCurrentlySpeakingMsgIdx(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+
+    const cleanedText = messageText
+      .replace(/[\*#`_]/g, "")
+      .replace(/-\s+/g, "");
+
+    const utterance = new SpeechSynthesisUtterance(cleanedText);
+    utterance.lang = "en-US";
+    
+    utterance.onend = () => {
+      setCurrentlySpeakingMsgIdx(null);
+    };
+
+    utterance.onerror = (err) => {
+      console.error("Speech synthesis error:", err);
+      setCurrentlySpeakingMsgIdx(null);
+    };
+
+    setCurrentlySpeakingMsgIdx(msgIndex);
+    window.speechSynthesis.speak(utterance);
+  };
 
   const [profile, setProfile] = useState({
     age: "",
@@ -66,30 +163,18 @@ const ChatBot = () => {
 
   // Load user data on startup
   useEffect(() => {
-    if (loggedIn) {
-      // Fetch persisted user profile
-      const fetchProfile = async () => {
-        try {
-          const { data } = await axios.get("/api/v1/auth/profile");
-          if (data?.user?.profile) {
-            setProfile({
-              age: data.user.profile.age || "",
-              gender: data.user.profile.gender || "",
-              weight: data.user.profile.weight || "",
-              height: data.user.profile.height || "",
-              vegpreference: data.user.profile.vegpreference || "",
-              healthGoal: data.user.profile.healthGoal || "",
-              healthProblem: data.user.profile.healthProblem || "",
-              allergy: data.user.profile.allergy || "",
-              locality: data.user.profile.locality || "",
-            });
-          }
-        } catch (err) {
-          console.error("Failed to load user profile in chatbot:", err);
-        }
-      };
-
-      fetchProfile();
+    if (loggedIn && user?.profile) {
+      setProfile({
+        age: user.profile.age || "",
+        gender: user.profile.gender || "",
+        weight: user.profile.weight || "",
+        height: user.profile.height || "",
+        vegpreference: user.profile.vegpreference || "",
+        healthGoal: user.profile.healthGoal || "",
+        healthProblem: user.profile.healthProblem || "",
+        allergy: user.profile.allergy || "",
+        locality: user.profile.locality || "",
+      });
 
       // If resuming a session from URL
       if (urlSessionId) {
@@ -113,12 +198,12 @@ const ChatBot = () => {
         };
         fetchSession();
       }
-    } else {
+    } else if (!loggedIn) {
       // Guest chat limits
       const count = parseInt(localStorage.getItem("healthmate_guest_chats") || "0", 10);
       setGuestChats(count);
     }
-  }, [loggedIn, urlSessionId]);
+  }, [loggedIn, user, urlSessionId]);
 
   // Fetch environment details
   useEffect(() => {
@@ -146,11 +231,12 @@ const ChatBot = () => {
     try {
       const { data } = await axios.put("/api/v1/auth/profile", profile);
       if (data?.user) {
-        localStorage.setItem("user", JSON.stringify(data.user));
+        updateProfileState(data.user);
         toast.success("Profile details synced!");
       }
     } catch (err) {
       console.error("Failed to sync profile in chatbot sidebar:", err);
+      toast.error(err.response?.data?.error || "Failed to save profile. Please try again.");
     }
   };
 
@@ -202,10 +288,21 @@ const ChatBot = () => {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-gray-900 text-white">
-      <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-4 p-4 md:p-6 h-[calc(100vh-5rem)]">
+      <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-4 p-4 md:p-6 h-[calc(100vh-5rem)] relative">
         
+        {/* Backdrop for mobile drawer */}
+        {showProfile && (
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+            onClick={() => setShowProfile(false)}
+          />
+        )}
+
         {/* Profile sidebar */}
-        <aside className={`lg:w-80 shrink-0 ${showProfile ? "block" : "hidden lg:block"}`}>
+        <aside className={`
+          fixed lg:static inset-y-0 left-0 w-80 lg:w-80 h-full shrink-0 z-50 transform transition-transform duration-300 ease-in-out bg-[#0f172a] lg:bg-transparent p-4 lg:p-0
+          ${showProfile ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+        `}>
           <div className="rounded-2xl border border-white/10 bg-gray-800/30 backdrop-blur-md p-4 h-full flex flex-col justify-between overflow-y-auto">
             <div>
               <div className="flex justify-between items-center mb-4 lg:hidden">
@@ -237,7 +334,6 @@ const ChatBot = () => {
                     placeholder={placeholder}
                     value={profile[key]}
                     onChange={updateProfile(key)}
-                    sx={{ "& .MuiInputBase-root": { bgcolor: "#ead5d3", borderRadius: "8px", fontSize: "13px", color: "black" } }}
                   />
                 ))}
               </div>
@@ -281,7 +377,7 @@ const ChatBot = () => {
                 </span>
               )}
               <button
-                className="lg:hidden flex items-center gap-1 text-sm text-[#fd5b5b]"
+                className="lg:hidden flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#fd5b5b]/30 bg-[#fd5b5b]/10 text-xs font-semibold text-[#fd5b5b] hover:bg-[#fd5b5b]/20 transition-all"
                 onClick={() => setShowProfile(!showProfile)}
               >
                 Profile {showProfile ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
@@ -321,9 +417,22 @@ const ChatBot = () => {
                   className={`max-w-[85%] md:max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                     msg.role === "user"
                       ? "bg-[#fd5b5b] text-white rounded-br-md"
-                      : "bg-white/5 border border-white/10 text-gray-100 rounded-bl-md"
+                      : "bg-white/5 border border-white/10 text-gray-100 rounded-bl-md relative group pr-10"
                   }`}
                 >
+                  {msg.role === "assistant" && (
+                    <button
+                      onClick={() => speakText(msg.content, idx)}
+                      className="absolute right-2 top-2 p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
+                      aria-label="Speak text"
+                    >
+                      {currentlySpeakingMsgIdx === idx ? (
+                        <VolumeOffIcon fontSize="small" className="text-[#fd5b5b] animate-pulse" />
+                      ) : (
+                        <VolumeUpIcon fontSize="small" />
+                      )}
+                    </button>
+                  )}
                   {msg.content.split("\n").map((line, lineIdx) => {
                     const formatted = formatLine(line);
                     if (formatted.type === "h1") {
@@ -344,20 +453,21 @@ const ChatBot = () => {
             ))}
 
             {loading && (
-              <div className="flex gap-3 items-center">
-                <div className="w-8 h-8 rounded-full bg-[#fd5b5b]/10 flex items-center justify-center">
+              <div className="flex gap-3 items-start">
+                <div className="w-8 h-8 rounded-full bg-[#fd5b5b]/10 border border-[#fd5b5b]/30 flex items-center justify-center shrink-0">
                   <SmartToyIcon fontSize="small" sx={{ color: "#fd5b5b" }} />
                 </div>
-                <div className="flex items-center gap-2 text-gray-400 text-sm">
-                  <div className="w-4 h-4 border-2 border-[#fd5b5b] border-t-transparent rounded-full animate-spin" />
-                  Thinking...
+                <div className="bg-white/5 border border-white/10 text-gray-400 rounded-2xl rounded-bl-md px-4 py-3 text-sm flex items-center gap-1.5 min-w-[60px] h-[36px]">
+                  <span className="w-2.5 h-2.5 bg-[#fd5b5b] rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></span>
+                  <span className="w-2.5 h-2.5 bg-[#fd5b5b] rounded-full animate-bounce" style={{ animationDelay: "150ms" }}></span>
+                  <span className="w-2.5 h-2.5 bg-[#fd5b5b] rounded-full animate-bounce" style={{ animationDelay: "300ms" }}></span>
                 </div>
               </div>
             )}
             <div ref={chatEndRef} />
           </div>
 
-          <form onSubmit={handleSubmit} className="p-4 border-t border-white/10 flex gap-2">
+          <form onSubmit={handleSubmit} className="p-4 border-t border-white/10 flex gap-2 items-center">
             <TextField
               fullWidth
               placeholder={!loggedIn && guestChats >= 3 ? "Please login to continue chatting..." : "Ask HealthMate AI: diet, calorie tracking, fitness plans..."}
@@ -365,8 +475,22 @@ const ChatBot = () => {
               onChange={(e) => setText(e.target.value)}
               disabled={loading || (!loggedIn && guestChats >= 3)}
               size="small"
-              sx={{ "& .MuiInputBase-root": { bgcolor: "#ead5d3", borderRadius: "12px", color: "black" } }}
             />
+            {!(!loggedIn && guestChats >= 3) && (
+              <IconButton
+                onClick={toggleRecording}
+                disabled={loading}
+                className={isRecording ? "animate-pulse" : ""}
+                sx={{
+                  color: isRecording ? "#fd5b5b" : "slate.400",
+                  bgcolor: isRecording ? "rgba(253, 91, 91, 0.15)" : "transparent",
+                  border: isRecording ? "1px solid rgba(253, 91, 91, 0.3)" : "1px solid rgba(255,255,255,0.1)",
+                  "&:hover": { bgcolor: isRecording ? "rgba(253, 91, 91, 0.25)" : "white/5" },
+                }}
+              >
+                {isRecording ? <MicOffIcon /> : <MicIcon />}
+              </IconButton>
+            )}
             <IconButton
               type="submit"
               disabled={loading || !text.trim() || (!loggedIn && guestChats >= 3)}

@@ -6,6 +6,8 @@ const {
   logoutController,
   getProfileController,
   updateProfileController,
+  refreshTokenController,
+  resetPasswordController,
 } = require("../controllers/authController");
 
 //router object
@@ -21,8 +23,14 @@ router.post("/login", loginController);
 //LOGOUT
 router.post("/logout", logoutController);
 
+//RESET PASSWORD
+router.post("/reset-password", resetPasswordController);
+
 //PROFILE
 router.get("/profile", protect, getProfileController);
 router.put("/profile", protect, updateProfileController);
+
+//REFRESH TOKEN
+router.get("/refresh-token", refreshTokenController);
 
 module.exports = router;

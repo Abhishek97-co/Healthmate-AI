@@ -73,11 +73,31 @@ export const themeSettings = (mode) => {
       MuiOutlinedInput: {
         styleOverrides: {
           root: {
-            "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-              borderColor: "#fd5b5b",
+            backgroundColor: "rgba(255, 255, 255, 0.05)",
+            borderRadius: "12px",
+            color: "#f8fafc",
+            "& .MuiOutlinedInput-notchedOutline": {
+              borderColor: "rgba(255, 255, 255, 0.1)",
+              transition: "border-color 0.2s ease",
             },
             "&:hover .MuiOutlinedInput-notchedOutline": {
               borderColor: "#fd5b5b",
+            },
+            "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+              borderColor: "#fd5b5b",
+            },
+            "& .MuiSelect-select": {
+              color: "#f8fafc",
+            },
+            "& select option": {
+              backgroundColor: "#1e293b",
+              color: "#f8fafc",
+            },
+          },
+          input: {
+            "&::placeholder": {
+              color: "#94a3b8",
+              opacity: 1,
             },
           },
         },
@@ -97,6 +117,7 @@ export const themeSettings = (mode) => {
       MuiInputLabel: {
         styleOverrides: {
           root: {
+            color: "#94a3b8",
             "&.Mui-focused": {
               color: "#fd5b5b",
             },
@@ -106,6 +127,7 @@ export const themeSettings = (mode) => {
       MuiFormLabel: {
         styleOverrides: {
           root: {
+            color: "#94a3b8",
             "&.Mui-focused": {
               color: "#fd5b5b",
             },

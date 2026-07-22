@@ -1,23 +1,31 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import axios from "axios";
 import { TextField, Button } from "@mui/material";
+import { useAuthStore } from "../store/useAuthStore";
 
 const Register = () => {
   const navigate = useNavigate();
+  const registerAction = useAuthStore((state) => state.register);
+  const loading = useAuthStore((state) => state.loading);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mpin, setMpin] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (mpin.length !== 4) {
+      toast.error("M-PIN must be exactly 4 digits");
+      return;
+    }
     try {
-      await axios.post("/api/v1/auth/register", { username, email, password });
-      toast.success("User Registered Successfully");
-      navigate("/login");
+      await registerAction(username, email, password, mpin);
+      toast.success("User Registered and Logged In Successfully");
+      navigate("/");
     } catch (err) {
       console.error("Registration error in console:", err.response?.data?.error || err.message);
+      toast.error(err.response?.data?.error || "Registration failed. Please check your inputs.");
     }
   };
 
@@ -37,7 +45,6 @@ const Register = () => {
             required
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            sx={{ "& .MuiInputBase-root": { bgcolor: "#f4e9e7", borderRadius: "12px", color: "black" } }}
           />
           <TextField
             fullWidth
@@ -47,7 +54,6 @@ const Register = () => {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            sx={{ "& .MuiInputBase-root": { bgcolor: "#f4e9e7", borderRadius: "12px", color: "black" } }}
           />
           <TextField
             fullWidth
@@ -57,15 +63,28 @@ const Register = () => {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            sx={{ "& .MuiInputBase-root": { bgcolor: "#f4e9e7", borderRadius: "12px", color: "black" } }}
+          />
+          <TextField
+            fullWidth
+            className="!mt-4"
+            label="4-Digit M-PIN (for password reset)"
+            type="text"
+            required
+            inputProps={{ maxLength: 4, pattern: "[0-9]*" }}
+            value={mpin}
+            onChange={(e) => {
+              const val = e.target.value.replace(/\D/g, "");
+              setMpin(val);
+            }}
           />
 
           <Button
             type="submit"
             fullWidth
+            disabled={loading}
             className="!mt-8 !rounded-full !bg-[#fd5b5b] !py-3 !text-lg !font-bold !text-white hover:!bg-[#e04a4a] !normal-case"
           >
-            Sign Up
+            {loading ? "Signing Up..." : "Sign Up"}
           </Button>
 
           <p className="mt-6 text-center text-sm text-slate-400">

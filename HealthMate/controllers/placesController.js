@@ -1,60 +1,41 @@
 const axios = require("axios");
 const PlaceReview = require("../models/placeReviewModel");
-
-async function geocodeLocation(query) {
-  try {
-    const { data } = await axios.get("https://photon.komoot.io/api/", {
-      params: { q: query, limit: 1 },
-      timeout: 10000,
-    });
-    if (data?.features?.length) {
-      const [lon, lat] = data.features[0].geometry.coordinates;
-      const props = data.features[0].properties;
-      const displayName = [props.name, props.city, props.country].filter(Boolean).join(", ");
-      return { lat, lon, displayName };
-    }
-  } catch (err) {
-    console.error("Photon geocode failed:", err.message);
-  }
-
-  const { data } = await axios.get("https://nominatim.openstreetmap.org/search", {
-    params: { q: query, format: "json", limit: 1 },
-    headers: {
-      "User-Agent": "HealthMate/1.0 (contact@healthmate.local)",
-      Accept: "application/json",
-    },
-    timeout: 10000,
-  });
-  if (!data?.length) return null;
-  return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon), displayName: data[0].display_name };
-}
+const { geocodeLocation } = require("../utils/geocoding");
 
 async function searchGooglePlaces(query, type) {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) return null;
 
-  const { data } = await axios.get(
-    "https://maps.googleapis.com/maps/api/place/textsearch/json",
-    {
-      params: {
-        query: `${type} near ${query}`,
-        key: apiKey,
-      },
+  try {
+    const { data } = await axios.get(
+      "https://maps.googleapis.com/maps/api/place/textsearch/json",
+      {
+        params: {
+          query: `${type} near ${query}`,
+          key: apiKey,
+        },
+      }
+    );
+
+    if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+      console.warn("Google Places API error status:", data.status, data.error_message);
+      return null;
     }
-  );
 
-  if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
-    throw new Error(data.error_message || "Google Places API error");
+    return (data.results || []).slice(0, 10).map((place) => ({
+      name: place.name,
+      address: place.formatted_address,
+      rating: place.rating || null,
+      totalRatings: place.user_ratings_total || 0,
+      openNow: place.opening_hours?.open_now ?? null,
+      source: "google",
+      lat: place.geometry?.location?.lat,
+      lon: place.geometry?.location?.lng,
+    }));
+  } catch (err) {
+    console.error("Google Places API query failed, falling back to OSM:", err.message);
+    return null;
   }
-
-  return (data.results || []).slice(0, 10).map((place) => ({
-    name: place.name,
-    address: place.formatted_address,
-    rating: place.rating || null,
-    totalRatings: place.user_ratings_total || 0,
-    openNow: place.opening_hours?.open_now ?? null,
-    source: "google",
-  }));
 }
 
 async function searchOSMPlaces(location, amenity) {
@@ -81,14 +62,16 @@ async function searchOSMPlaces(location, amenity) {
     totalRatings: 0,
     openNow: null,
     source: "openstreetmap",
+    lat: place.lat,
+    lon: place.lon,
   }));
 }
 
 exports.nearbyPlacesController = async (req, res) => {
   const { location, type = "pharmacy" } = req.body;
 
-  if (!location?.trim()) {
-    return res.status(400).json({ error: "Please provide a location." });
+  if (typeof location !== "string" || !location.trim()) {
+    return res.status(400).json({ error: "Please provide a valid location string." });
   }
 
   const typeMap = {
@@ -128,8 +111,8 @@ exports.nearbyPlacesController = async (req, res) => {
 exports.getPlaceReviewsController = async (req, res) => {
   const { name, address } = req.query;
 
-  if (!name || !address) {
-    return res.status(400).json({ error: "Place name and address are required." });
+  if (typeof name !== "string" || typeof address !== "string" || !name.trim() || !address.trim()) {
+    return res.status(400).json({ error: "Place name and address must be non-empty strings." });
   }
 
   try {
@@ -156,8 +139,15 @@ exports.getPlaceReviewsController = async (req, res) => {
 exports.createPlaceReviewController = async (req, res) => {
   const { name, address, rating, comment } = req.body;
 
-  if (!name?.trim() || !address?.trim() || !comment?.trim()) {
-    return res.status(400).json({ error: "Place name, address, and comment are required." });
+  if (
+    typeof name !== "string" ||
+    typeof address !== "string" ||
+    typeof comment !== "string" ||
+    !name.trim() ||
+    !address.trim() ||
+    !comment.trim()
+  ) {
+    return res.status(400).json({ error: "Place name, address, and comment must be non-empty strings." });
   }
 
   if (!rating || rating < 1 || rating > 5) {

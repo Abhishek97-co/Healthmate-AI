@@ -3,15 +3,22 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { TextField, Button, Grid, MenuItem } from "@mui/material";
-import PersonIcon from "@mui/icons-material/Person";
-import HealthAndSafetyIcon from "@mui/icons-material/HealthAndSafety";
-import SaveIcon from "@mui/icons-material/Save";
+import {
+  Person as PersonIcon,
+  HealthAndSafety as HealthAndSafetyIcon,
+  Save as SaveIcon
+} from "@mui/icons-material";
+import { useAuthStore } from "../store/useAuthStore";
 
 const Profile = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [user, setUser] = useState(null);
+
+  const user = useAuthStore((state) => state.user);
+  const updateProfileState = useAuthStore((state) => state.updateProfileState);
+  const storeToken = useAuthStore((state) => state.token);
+  const fetchProfile = useAuthStore((state) => state.fetchProfile);
 
   const [profile, setProfile] = useState({
     age: "",
@@ -26,40 +33,32 @@ const Profile = () => {
   });
 
   useEffect(() => {
-    const token = localStorage.getItem("authToken");
-    if (!token) {
+    if (!storeToken) {
       navigate("/login");
       return;
     }
+    if (!user) {
+      fetchProfile().finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+  }, [storeToken, user, fetchProfile, navigate]);
 
-    const fetchProfile = async () => {
-      try {
-        const { data } = await axios.get("/api/v1/auth/profile");
-        if (data?.user) {
-          setUser(data.user);
-          if (data.user.profile) {
-            setProfile({
-              age: data.user.profile.age || "",
-              gender: data.user.profile.gender || "",
-              weight: data.user.profile.weight || "",
-              height: data.user.profile.height || "",
-              vegpreference: data.user.profile.vegpreference || "",
-              healthGoal: data.user.profile.healthGoal || "",
-              healthProblem: data.user.profile.healthProblem || "",
-              allergy: data.user.profile.allergy || "",
-              locality: data.user.profile.locality || "",
-            });
-          }
-        }
-      } catch (err) {
-        console.error("Failed to fetch profile in console:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProfile();
-  }, [navigate]);
+  useEffect(() => {
+    if (user?.profile) {
+      setProfile({
+        age: user.profile.age || "",
+        gender: user.profile.gender || "",
+        weight: user.profile.weight || "",
+        height: user.profile.height || "",
+        vegpreference: user.profile.vegpreference || "",
+        healthGoal: user.profile.healthGoal || "",
+        healthProblem: user.profile.healthProblem || "",
+        allergy: user.profile.allergy || "",
+        locality: user.profile.locality || "",
+      });
+    }
+  }, [user]);
 
   const handleChange = (field) => (e) => {
     setProfile((prev) => ({ ...prev, [field]: e.target.value }));
@@ -71,12 +70,12 @@ const Profile = () => {
     try {
       const { data } = await axios.put("/api/v1/auth/profile", profile);
       if (data?.user) {
-        setUser(data.user);
-        localStorage.setItem("user", JSON.stringify(data.user));
+        updateProfileState(data.user);
         toast.success("Profile saved successfully!");
       }
     } catch (err) {
       console.error("Failed to save profile in console:", err);
+      toast.error(err.response?.data?.error || "Failed to update profile. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -124,7 +123,6 @@ const Profile = () => {
                   placeholder="e.g. 25"
                   value={profile.age}
                   onChange={handleChange("age")}
-                  sx={{ "& .MuiInputBase-root": { bgcolor: "#f4e9e7", borderRadius: "10px", color: "black" } }}
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
@@ -134,7 +132,6 @@ const Profile = () => {
                   label="Gender"
                   value={profile.gender}
                   onChange={handleChange("gender")}
-                  sx={{ "& .MuiInputBase-root": { bgcolor: "#f4e9e7", borderRadius: "10px", color: "black" } }}
                 >
                   <MenuItem value="Male">Male</MenuItem>
                   <MenuItem value="Female">Female</MenuItem>
@@ -148,7 +145,6 @@ const Profile = () => {
                   placeholder="e.g. 70"
                   value={profile.weight}
                   onChange={handleChange("weight")}
-                  sx={{ "& .MuiInputBase-root": { bgcolor: "#f4e9e7", borderRadius: "10px", color: "black" } }}
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
@@ -158,7 +154,6 @@ const Profile = () => {
                   placeholder="e.g. 175"
                   value={profile.height}
                   onChange={handleChange("height")}
-                  sx={{ "& .MuiInputBase-root": { bgcolor: "#f4e9e7", borderRadius: "10px", color: "black" } }}
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
@@ -168,7 +163,6 @@ const Profile = () => {
                   label="Diet Preference"
                   value={profile.vegpreference}
                   onChange={handleChange("vegpreference")}
-                  sx={{ "& .MuiInputBase-root": { bgcolor: "#f4e9e7", borderRadius: "10px", color: "black" } }}
                 >
                   <MenuItem value="Veg">Vegetarian</MenuItem>
                   <MenuItem value="Non-Veg">Non-Vegetarian</MenuItem>
@@ -183,7 +177,6 @@ const Profile = () => {
                   placeholder="e.g. Mumbai, India"
                   value={profile.locality}
                   onChange={handleChange("locality")}
-                  sx={{ "& .MuiInputBase-root": { bgcolor: "#f4e9e7", borderRadius: "10px", color: "black" } }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -193,7 +186,6 @@ const Profile = () => {
                   placeholder="e.g. Weight loss, muscle gain, cardio health"
                   value={profile.healthGoal}
                   onChange={handleChange("healthGoal")}
-                  sx={{ "& .MuiInputBase-root": { bgcolor: "#f4e9e7", borderRadius: "10px", color: "black" } }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -203,7 +195,6 @@ const Profile = () => {
                   placeholder="e.g. Diabetes, Hypertension, Asthma"
                   value={profile.healthProblem}
                   onChange={handleChange("healthProblem")}
-                  sx={{ "& .MuiInputBase-root": { bgcolor: "#f4e9e7", borderRadius: "10px", color: "black" } }}
                 />
               </Grid>
               <Grid item xs={12}>
@@ -213,7 +204,6 @@ const Profile = () => {
                   placeholder="e.g. Peanuts, Dairy, Gluten (comma separated)"
                   value={profile.allergy}
                   onChange={handleChange("allergy")}
-                  sx={{ "& .MuiInputBase-root": { bgcolor: "#f4e9e7", borderRadius: "10px", color: "black" } }}
                 />
               </Grid>
             </Grid>

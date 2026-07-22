@@ -19,6 +19,13 @@ const userSchema = new mongoose.Schema({
     required: [true, "Password is required"],
     minlength: [6, "Password length should be 6 character long"],
   },
+  mpin: {
+    type: String,
+    required: [true, "MPIN is required"],
+    minlength: [4, "MPIN must be 4 digits"],
+    maxlength: [4, "MPIN must be 4 digits"],
+    default: "1234",
+  },
   customerId: {
     type: String,
     default: "",
@@ -44,7 +51,7 @@ const userSchema = new mongoose.Schema({
 userSchema.pre("save", async function (next) {
   //update
   if (!this.isModified("password")) {
-    next();
+    return next();
   }
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);

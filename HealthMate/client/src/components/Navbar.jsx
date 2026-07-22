@@ -1,14 +1,15 @@
 import React, { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import axios from "axios";
 import toast from "react-hot-toast";
-import MenuIcon from "@mui/icons-material/Menu";
-import CloseIcon from "@mui/icons-material/Close";
+import { Menu as MenuIcon, Close as CloseIcon } from "@mui/icons-material";
+import { useAuthStore } from "../store/useAuthStore";
 
 const Navbar = () => {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
-  const loggedIn = !!localStorage.getItem("authToken");
+  const token = useAuthStore((state) => state.token);
+  const logout = useAuthStore((state) => state.logout);
+  const loggedIn = !!token;
 
   const currentNavLinks = [
     { to: "/", label: "Home" },
@@ -26,10 +27,7 @@ const Navbar = () => {
 
   const handleLogout = async () => {
     try {
-      await axios.post("/api/v1/auth/logout");
-      localStorage.removeItem("authToken");
-      localStorage.removeItem("user");
-      delete axios.defaults.headers.common["Authorization"];
+      await logout();
       toast.success("Logged out successfully");
       navigate("/login");
     } catch (error) {
@@ -37,53 +35,66 @@ const Navbar = () => {
     }
   };
 
-  const linkClass = ({ isActive }) =>
-    `px-3 py-2 rounded-full text-sm md:text-base font-medium transition-all ${
+  const desktopLinkClass = ({ isActive }) =>
+    `px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${
       isActive
-        ? "text-[#fd5b5b] bg-white/10 shadow-[0_0_0_1px_rgba(253,91,91,0.25)]"
-        : "text-slate-200 hover:text-white hover:bg-white/5"
+        ? "text-white bg-[#fd5b5b] shadow-[0_8px_20px_rgba(253,91,91,0.3)] scale-105"
+        : "text-slate-300 hover:text-white hover:bg-white/5"
+    }`;
+
+  const mobileLinkClass = ({ isActive }) =>
+    `block w-full px-4 py-3 rounded-2xl text-base font-semibold transition-all duration-200 ${
+      isActive
+        ? "text-white bg-[#fd5b5b] shadow-[0_4px_12px_rgba(253,91,91,0.25)]"
+        : "text-slate-300 hover:text-white hover:bg-white/5"
     }`;
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
+    <nav className="sticky top-0 z-50 border-b border-white/5 bg-slate-950/80 backdrop-blur-xl transition-all duration-300">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8 md:h-20">
-        <NavLink to="/" className="flex min-w-0 items-center gap-2 sm:gap-3">
+        <NavLink to="/" className="flex items-center gap-2 group">
           <img
             src="/heart-attack.png"
             alt="HealthMate"
-            className="h-8 shrink-0 drop-shadow-[0_0_12px_rgba(253,91,91,0.4)] sm:h-10"
+            className="h-8 shrink-0 transition-transform duration-300 group-hover:scale-110 drop-shadow-[0_0_12px_rgba(253,91,91,0.4)] sm:h-10"
           />
-          <span className="truncate text-xl font-bold text-white sm:text-2xl md:text-3xl">HealthMate</span>
+          <span className="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text">
+            HealthMate
+          </span>
         </NavLink>
 
-        <div className="hidden items-center gap-1 md:flex">
+        {/* Desktop Links */}
+        <div className="hidden items-center gap-2 md:flex">
           {currentNavLinks.map((link) => (
-            <NavLink key={link.to} to={link.to} className={linkClass}>
+            <NavLink key={link.to} to={link.to} className={desktopLinkClass}>
               {link.label}
             </NavLink>
           ))}
           {loggedIn ? (
             <button
               onClick={handleLogout}
-              className="ml-2 rounded-full bg-[#fd5b5b] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#e04a4a]"
+              className="ml-3 rounded-full bg-gradient-to-r from-red-500 to-[#fd5b5b] px-5 py-2.5 text-sm font-semibold text-white shadow-lg hover:brightness-110 transition-all active:scale-95 cursor-pointer"
             >
               Logout
             </button>
           ) : (
-            <>
-              <NavLink to="/login" className={linkClass}>Sign In</NavLink>
+            <div className="flex items-center gap-2 ml-2">
+              <NavLink to="/login" className="px-4 py-2 font-semibold text-slate-300 hover:text-white transition">
+                Sign In
+              </NavLink>
               <NavLink
                 to="/register"
-                className="ml-2 rounded-full bg-[#fd5b5b] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#e04a4a]"
+                className="rounded-full bg-gradient-to-r from-red-500 to-[#fd5b5b] px-5 py-2.5 text-sm font-semibold text-white shadow-lg hover:brightness-110 transition-all active:scale-95"
               >
                 Sign Up
               </NavLink>
-            </>
+            </div>
           )}
         </div>
 
+        {/* Mobile Toggle Menu */}
         <button
-          className="rounded-full border border-white/10 p-2 text-white md:hidden"
+          className="rounded-full border border-white/10 p-2 text-white hover:bg-white/5 transition md:hidden cursor-pointer"
           onClick={() => setMenuOpen(!menuOpen)}
           aria-label="Toggle menu"
         >
@@ -91,37 +102,44 @@ const Navbar = () => {
         </button>
       </div>
 
+      {/* Mobile Drawer Dropdown */}
       {menuOpen && (
-        <div className="space-y-2 border-t border-white/10 bg-slate-950/95 px-4 py-4 md:hidden">
+        <div className="absolute top-16 left-0 right-0 border-b border-white/5 bg-slate-950/95 px-4 py-5 space-y-3 md:hidden shadow-2xl backdrop-blur-xl">
           {currentNavLinks.map((link) => (
-            <NavLink key={link.to} to={link.to} className={linkClass} onClick={() => setMenuOpen(false)}>
+            <NavLink key={link.to} to={link.to} className={mobileLinkClass} onClick={() => setMenuOpen(false)}>
               {link.label}
             </NavLink>
           ))}
-          {loggedIn ? (
-            <button
-              onClick={() => {
-                handleLogout();
-                setMenuOpen(false);
-              }}
-              className="w-full rounded-full border border-[#fd5b5b]/40 px-3 py-2 text-left font-medium text-[#fd5b5b]"
-            >
-              Logout
-            </button>
-          ) : (
-            <>
-              <NavLink to="/login" className={linkClass} onClick={() => setMenuOpen(false)}>
-                Sign In
-              </NavLink>
-              <NavLink
-                to="/register"
-                className="block rounded-full bg-[#fd5b5b] px-3 py-2 text-center font-semibold text-white"
-                onClick={() => setMenuOpen(false)}
+          <div className="border-t border-white/5 pt-3">
+            {loggedIn ? (
+              <button
+                onClick={() => {
+                  handleLogout();
+                  setMenuOpen(false);
+                }}
+                className="w-full rounded-2xl bg-gradient-to-r from-red-500 to-[#fd5b5b] py-3 text-center font-bold text-white shadow-lg cursor-pointer"
               >
-                Sign Up
-              </NavLink>
-            </>
-          )}
+                Logout
+              </button>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <NavLink
+                  to="/login"
+                  className="block w-full py-3 text-center font-semibold text-slate-300 hover:text-white rounded-2xl hover:bg-white/5 transition"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Sign In
+                </NavLink>
+                <NavLink
+                  to="/register"
+                  className="block w-full rounded-2xl bg-gradient-to-r from-red-500 to-[#fd5b5b] py-3 text-center font-bold text-white shadow-lg"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Sign Up
+                </NavLink>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </nav>

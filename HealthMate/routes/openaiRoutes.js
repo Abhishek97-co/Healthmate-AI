@@ -5,12 +5,13 @@ const {
   getChatHistoryController,
   getChatSessionController,
   deleteChatSessionController,
+  scanMealController,
 } = require("../controllers/openaiController.js");
 
 const router = express.Router();
 
-// routes
 router.post("/chatbot", chatbotController);
+router.post("/scan-meal", protect, scanMealController);
 router.get("/history", protect, getChatHistoryController);
 router.get("/chat/:id", protect, getChatSessionController);
 router.delete("/chat/:id", protect, deleteChatSessionController);

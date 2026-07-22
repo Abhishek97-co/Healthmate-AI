@@ -4,10 +4,11 @@
   "description": "chat gpt clone",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test",
     "server": "nodemon server.js",
     "start": "node server.js",
-    "client": "npm start --prefix ./client",
+    "client": "npm run dev --prefix ./client",
     "dev": "concurrently \"npm run server\" \"npm run client\""
   },
   "author": "techinfyt",
@@ -31,8 +32,10 @@
     "react-markdown": "^10.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.3",
-    "tailwindcss": "^4.1.3"
+    "tailwindcss": "^4.1.3",
+    "vitest": "^4.1.10"
   }
 }

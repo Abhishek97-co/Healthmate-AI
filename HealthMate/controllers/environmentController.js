@@ -1,4 +1,5 @@
 const axios = require("axios");
+const { geocodeLocation } = require("../utils/geocoding");
 
 function getAqiLabel(aqi) {
   if (aqi <= 1) return "Good";
@@ -8,36 +9,12 @@ function getAqiLabel(aqi) {
   return "Very Poor";
 }
 
-async function geocodeLocation(query) {
-  try {
-    const { data } = await axios.get("https://photon.komoot.io/api/", {
-      params: { q: query, limit: 1 },
-      timeout: 10000,
-    });
-    if (data?.features?.length) {
-      const [lon, lat] = data.features[0].geometry.coordinates;
-      const props = data.features[0].properties;
-      const name = [props.name, props.city, props.country].filter(Boolean).join(", ");
-      return { lat, lon, name };
-    }
-  } catch {
-    // fallback below
-  }
-
-  const { data } = await axios.get("https://nominatim.openstreetmap.org/search", {
-    params: { q: query, format: "json", limit: 1 },
-    headers: { "User-Agent": "HealthMate/1.0", Accept: "application/json" },
-  });
-  if (!data?.length) return null;
-  return { lat: data[0].lat, lon: data[0].lon, name: data[0].display_name };
-}
-
 exports.environmentController = async (req, res) => {
   const { location } = req.query;
   const apiKey = process.env.OPENWEATHER_API_KEY;
 
-  if (!location?.trim()) {
-    return res.status(400).json({ error: "Please provide a location." });
+  if (typeof location !== "string" || !location.trim()) {
+    return res.status(400).json({ error: "Please provide a valid location string." });
   }
 
   if (!apiKey) {

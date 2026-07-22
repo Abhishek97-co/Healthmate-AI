@@ -2,3 +2,10 @@ node_modules
 .env
 .env.*
 !.env.example
+
+# Playwright temporary folders
+playwright-report/
+test-results/
+
+# AI developer configuration
+.agents/

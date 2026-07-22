@@ -55,12 +55,15 @@ function buildHealthPrompt({ text, profile, environment }) {
 
   return parts.filter(Boolean).join("\n");
 }
+const GUEST_LIMIT = 3;
+const GUEST_WINDOW_MS = 24 * 60 * 60 * 1000;
+const guestChatLimits = new Map();
 
 exports.chatbotController = async (req, res) => {
   const { text, age, gender, weight, height, vegpreference, healthGoal, allergy, locality, healthProblem, environment, chatSessionId } = req.body;
 
-  if (!text?.trim()) {
-    return res.status(400).json({ error: "Please enter a health-related question." });
+  if (typeof text !== "string" || !text.trim()) {
+    return res.status(400).json({ error: "Please enter a valid health-related question." });
   }
 
   if (!isHealthRelated(text) && !healthGoal && !healthProblem) {
@@ -81,8 +84,47 @@ exports.chatbotController = async (req, res) => {
     }
   }
 
+  // Enforce server-side guest chat limits
+  if (!userId) {
+    const ip = req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+    const now = Date.now();
+    const limitInfo = guestChatLimits.get(ip) || { count: 0, resetTime: now + GUEST_WINDOW_MS };
+
+    if (now > limitInfo.resetTime) {
+      limitInfo.count = 0;
+      limitInfo.resetTime = now + GUEST_WINDOW_MS;
+    }
+
+    if (limitInfo.count >= GUEST_LIMIT) {
+      return res.status(403).json({
+        error: "You have used all 3 free guest consultations. Please sign in or register to continue.",
+        limitExceeded: true,
+      });
+    }
+
+    // Update count in cache
+    limitInfo.count += 1;
+    guestChatLimits.set(ip, limitInfo);
+  }
+
   const profile = { age, gender, weight, height, vegpreference, healthGoal, allergy, locality, healthProblem };
   const userContent = buildHealthPrompt({ text, profile, environment });
+
+  // Load chat session history from database for conversational context
+  let historyMessages = [];
+  if (userId && chatSessionId) {
+    try {
+      const chatSession = await Chat.findOne({ _id: chatSessionId, user: userId });
+      if (chatSession && chatSession.messages?.length) {
+        historyMessages = chatSession.messages.map((msg) => ({
+          role: msg.role,
+          content: msg.content,
+        }));
+      }
+    } catch (err) {
+      console.error("Failed to load chat history in chatbot controller:", err.message);
+    }
+  }
 
   try {
     const response = await openai.chat.completions.create({
@@ -97,6 +139,7 @@ exports.chatbotController = async (req, res) => {
 - Environment-aware suggestions when location/climate data is provided
 Keep responses clear, structured with headings, and practical. Never diagnose diseases definitively. Include disclaimers for medical emergencies.`,
         },
+        ...historyMessages,
         { role: "user", content: userContent },
       ],
     });
@@ -180,5 +223,69 @@ exports.deleteChatSessionController = async (req, res) => {
   } catch (error) {
     console.error("Session delete error:", error);
     return res.status(500).json({ error: "Failed to delete conversation." });
+  }
+};
+
+// SCAN MEAL PHOTO
+exports.scanMealController = async (req, res) => {
+  const { image } = req.body;
+
+  if (!image) {
+    return res.status(400).json({ error: "Please provide a base64 food image." });
+  }
+
+  if (!process.env.OPENAI_API_KEY) {
+    const mockMeals = [
+      { food: "Avocado Chicken Salad", calories: 420, carbs: 12, protein: 32, fat: 26 },
+      { food: "Protein Oatmeal with Berries", calories: 350, carbs: 48, protein: 18, fat: 8 },
+      { food: "Salmon Quinoa Bowl", calories: 550, carbs: 42, protein: 38, fat: 22 },
+      { food: "Greek Yogurt Honey Parfait", calories: 280, carbs: 34, protein: 15, fat: 6 }
+    ];
+    const result = mockMeals[Math.floor(Math.random() * mockMeals.length)];
+    return res.status(200).json({
+      success: true,
+      mocked: true,
+      ...result
+    });
+  }
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Identify the food in this image and estimate its macronutrients. Return a raw JSON object ONLY, with no markdown codeblocks, prefix or suffix. Format: { \"food\": \"Item Name\", \"calories\": number, \"carbs\": number, \"protein\": number, \"fat\": number }" },
+            {
+              type: "image_url",
+              image_url: {
+                url: image
+              }
+            }
+          ]
+        }
+      ]
+    });
+
+    const contentText = response.choices[0]?.message?.content || "{}";
+    const cleanedJsonText = contentText.replace(/```json/g, "").replace(/```/g, "").trim();
+    const result = JSON.parse(cleanedJsonText);
+
+    return res.status(200).json({
+      success: true,
+      mocked: false,
+      ...result
+    });
+  } catch (error) {
+    console.error("AI meal scan error:", error.message);
+    const mockMeals = [
+      { food: "Avocado Chicken Salad", calories: 420, carbs: 12, protein: 32, fat: 26 }
+    ];
+    return res.status(200).json({
+      success: true,
+      mocked: true,
+      ...mockMeals[0]
+    });
   }
 };

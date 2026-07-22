@@ -1,11 +1,13 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import ChatIcon from "@mui/icons-material/Chat";
-import RestaurantIcon from "@mui/icons-material/Restaurant";
-import FitnessCenterIcon from "@mui/icons-material/FitnessCenter";
-import LocalHospitalIcon from "@mui/icons-material/LocalHospital";
-import RateReviewIcon from "@mui/icons-material/RateReview";
-import AirIcon from "@mui/icons-material/Air";
+import {
+  Chat as ChatIcon,
+  Restaurant as RestaurantIcon,
+  FitnessCenter as FitnessCenterIcon,
+  LocalHospital as LocalHospitalIcon,
+  RateReview as RateReviewIcon,
+  Air as AirIcon
+} from "@mui/icons-material";
 
 const features = [
   {

@@ -28,14 +28,14 @@ app.use(morgan("dev"));
 
 const PORT = process.env.PORT || 8080;
 
-//API routes
+
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/openai", require("./routes/openaiRoutes"));
 app.use("/api/v1/places", require("./routes/placesRoutes"));
 app.use("/api/v1/environment", require("./routes/environmentRoutes"));
 app.use("/api/v1/reviews", require("./routes/reviewRoutes"));
 app.use(errorHandler);
-//listen server
+
 app.listen(PORT, () => {
   console.log(
     `Server Running in ${process.env.DEV_MODE} mode on port no ${PORT}`.bgCyan

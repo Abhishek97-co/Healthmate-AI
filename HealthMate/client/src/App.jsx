@@ -16,8 +16,10 @@ import Reviews from "./pages/Reviews";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import axios from "axios";
+import { useAuthStore } from "./store/useAuthStore";
+import { useEffect } from "react";
 
-// Set initial axios auth header if token exists in localStorage
+// Set initial axios auth header if token exists in store initialization
 const token = localStorage.getItem("authToken");
 if (token) {
   axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
@@ -25,6 +27,14 @@ if (token) {
 
 function App() {
   const theme = useMemo(() => createTheme(themeSettings()), []);
+  const fetchProfile = useAuthStore((state) => state.fetchProfile);
+  const storeToken = useAuthStore((state) => state.token);
+
+  useEffect(() => {
+    if (storeToken) {
+      fetchProfile();
+    }
+  }, [storeToken, fetchProfile]);
 
   return (
     <>
