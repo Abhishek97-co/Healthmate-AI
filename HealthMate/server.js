@@ -38,11 +38,16 @@ app.use(errorHandler);
 
 // SERVE STATIC ASSETS FOR THE FRONTEND
 const path = require("path");
+const fs = require("fs");
 const frontendDistPath = path.join(__dirname, "client", "dist");
 const frontendIndexPath = path.join(frontendDistPath, "index.html");
 
-if (require("fs").existsSync(frontendDistPath)) {
+if (fs.existsSync(frontendDistPath)) {
   app.use(express.static(frontendDistPath));
+
+  app.get("/", (req, res) => {
+    res.sendFile(frontendIndexPath);
+  });
 
   app.get("*", (req, res, next) => {
     if (req.path.startsWith("/api")) {
